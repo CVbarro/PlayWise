@@ -46,10 +46,14 @@ public class SteamService {
                 if (appId == -1) continue;
 
                 Game game = getGameInfo(appId);
-                if (game != null) {
+
+                // ✅ Filtro: apenas jogos com type = "game"
+                if (game != null && "game".equalsIgnoreCase(game.getType())) {
                     results.add(game);
                 } else {
-                    results.add(buildFallbackGame(item, appId));
+                    logger.info("Produto ignorado: {} (tipo: {})",
+                            game != null ? game.getTitle() : "desconhecido",
+                            game != null ? game.getType() : "nulo");
                 }
             }
 
@@ -91,16 +95,7 @@ public class SteamService {
     }
 
     private String extractType(JsonObject gameData) {
-        if (gameData.has("type")) {
-            return safeGet(gameData, "type", "Tipo indefinido");
-        }
-        if (gameData.has("genres")) {
-            JsonArray genres = gameData.getAsJsonArray("genres");
-            if (!genres.isEmpty()) {
-                return safeGet(genres.get(0).getAsJsonObject(), "description", "Tipo indefinido");
-            }
-        }
-        return "Tipo indefinido";
+        return safeGet(gameData, "type", "Tipo indefinido");
     }
 
     private String extractReleaseDate(JsonObject gameData) {
@@ -115,21 +110,6 @@ public class SteamService {
             return safeGet(gameData.getAsJsonObject("price_overview"), "final_formatted", "Gratuito");
         }
         return "Gratuito";
-    }
-
-    private Game buildFallbackGame(JsonObject item, int appId) {
-        String title = safeGet(item, "name", "Título desconhecido");
-        String type = "desconhecido";
-        String releaseDate = "-";
-        String price = "Indisponível";
-
-        if (item.has("price") && item.getAsJsonObject("price").has("final")) {
-            double finalPrice = item.getAsJsonObject("price").get("final").getAsDouble() / 100.0;
-            price = "R$ " + String.format("%.2f", finalPrice).replace(".", ",");
-        }
-
-        logger.warn("Usando fallback para jogo {} (appId: {})", title, appId);
-        return new Game(title, type, releaseDate, price);
     }
 
     private String safeGet(JsonObject obj, String key, String fallback) {

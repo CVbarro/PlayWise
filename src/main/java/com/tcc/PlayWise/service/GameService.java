@@ -32,7 +32,8 @@ public class GameService {
                 Map.of("step", "taxPrice", "enabled", true),
                 Map.of("step", "storeRatePrice", "enabled", true),
                 Map.of("step", "finalizePrice", "enabled", true),
-                Map.of("step", "standardizeDate", "enabled", true)
+                Map.of("step", "standardizeDate", "enabled", true),
+                Map.of("step", "markIfFree", "enabled", true)
         );
     }
 
@@ -63,6 +64,14 @@ public class GameService {
         gameStorage.add(processed); // simula persistência
 
         return buildDTO(processed, context);
+    }
+
+    public List<GameDetailsDTO> processSteamGames(List<Game> rawGames) {
+        List<GameDetailsDTO> result = new ArrayList<>();
+        for (Game game : rawGames) {
+            result.add(processGame(game)); // reaproveita o método existente
+        }
+        return result;
     }
 
     @PostConstruct
@@ -96,10 +105,11 @@ public class GameService {
         dto.setTitle(game.getTitle());
         dto.setType(game.getType());
         dto.setReleaseDate(game.getReleaseDate());
-        dto.setPriceOriginal((double) context.get("originalPrice"));
-        dto.setPriceFinal((double) context.get("parsedPrice"));
-        dto.setTax((double) context.get("imposto"));
-        dto.setRate((double) context.get("taxa"));
+        dto.setPriceOriginal((double) context.getOrDefault("originalPrice", 0.0));
+        dto.setPriceFinal((double) context.getOrDefault("parsedPrice", 0.0));
+        dto.setTax((double) context.getOrDefault("imposto", 0.0));
+        dto.setRate((double) context.getOrDefault("taxa", 0.0));
+
         return dto;
     }
 }
