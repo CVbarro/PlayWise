@@ -5,6 +5,8 @@ import com.tcc.PlayWise.pipeline.core.Step;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -13,20 +15,8 @@ import java.util.Locale;
 public class GameStep {
 
     @Bean
-    public Step<Game> markIfFree() {
-        return (game, params) -> {
-            String price = game.getPrice() != null ? game.getPrice().toLowerCase() : "";
-            if (price.contains("gratuito") || price.contains("free") || price.trim().equals("0.0")) {
-                params.put("skipPriceSteps", true);
-                System.out.println("[Pipeline] Jogo gratuito detectado: " + game.getTitle());
-            }
-            return game;
-        };
-    }
-
-    @Bean
     public Step<Game> standardizeTitle() {
-        return (game, params) -> {
+        return (game, ignored) -> {
             if (game.getTitle() != null) {
                 game.setTitle(game.getTitle().trim().toUpperCase());
             }
@@ -36,7 +26,7 @@ public class GameStep {
 
     @Bean
     public Step<Game> standardizeType() {
-        return (game, params) -> {
+        return (game, ignored) -> {
             if (game.getType() != null) {
                 game.setType(game.getType().trim().toUpperCase());
             }
@@ -46,32 +36,49 @@ public class GameStep {
 
     @Bean
     public Step<Game> standardizePrice() {
-        return (game, params) -> {
-            if (Boolean.TRUE.equals(params.get("skipPriceSteps"))) return game;
+        return (game, ignored) -> {
+            String raw = game.getPrice() != null ? game.getPrice().trim().toLowerCase() : "";
 
-            if (game.getPrice() != null) {
-                String raw = game.getPrice().toLowerCase().trim();
+            if (raw.contains("gratuito") || raw.contains("free") || raw.equals("0") || raw.equals("0.00")) {
+                game.setPriceParsed(0.0);
+                game.setPriceOriginal(0.0);
+                return game;
+            }
 
-                if (raw.contains("gratuito") || raw.contains("free")) {
-                    params.put("parsedPrice", 0.0);
-                    params.put("originalPrice", 0.0);
-                    return game;
-                }
+            String cleaned = raw
+                    .replaceAll("r\\$", "")
+                    .replaceAll("us\\$", "")
+                    .replaceAll("usd", "")
+                    .replaceAll("u\\$", "")
+                    .replaceAll("eur", "")
+                    .replaceAll("€", "")
+                    .replaceAll("[^\\d,\\.]", "")
+                    .replace(",", ".");
 
-                raw = raw.replace("r$", "")
-                        .replace("us$", "")
-                        .replace(",", ".")
-                        .replaceAll("[^\\d.]", "");
+            if (cleaned.chars().filter(ch -> ch == '.').count() > 1) {
+                int lastDot = cleaned.lastIndexOf('.');
+                cleaned = cleaned.substring(0, lastDot).replace(".", "") + cleaned.substring(lastDot);
+            }
 
-                try {
-                    double parsed = Double.parseDouble(raw);
-                    params.put("parsedPrice", parsed);
-                    params.put("originalPrice", parsed);
-                } catch (NumberFormatException e) {
-                    System.err.println("[Pipeline] Preço inválido ignorado: " + game.getPrice());
-                    params.put("parsedPrice", 0.0);
-                    params.put("originalPrice", 0.0);
-                }
+            try {
+                double parsed = new BigDecimal(cleaned).setScale(2, RoundingMode.HALF_UP).doubleValue();
+                game.setPriceParsed(parsed);
+                game.setPriceOriginal(parsed);
+            } catch (NumberFormatException e) {
+                System.err.printf("[Pipeline] Erro ao converter preço '%s' para jogo '%s'%n", raw, game.getTitle());
+                game.setPriceParsed(-1.0);
+                game.setPriceOriginal(-1.0);
+            }
+
+            return game;
+        };
+    }
+
+    @Bean
+    public Step<Game> markIfFree() {
+        return (game, ignored) -> {
+            if (game.getPriceParsed() == 0.0) {
+                game.setPrice("Gratuito");
             }
             return game;
         };
@@ -79,93 +86,82 @@ public class GameStep {
 
     @Bean
     public Step<Game> taxPrice() {
-        return (game, params) -> {
-            if (Boolean.TRUE.equals(params.get("skipPriceSteps"))) return game;
+        return (game, ignored) -> {
+            double price = game.getPriceParsed();
+            if (price <= 0.0) return game;
 
-            double price = (double) params.getOrDefault("parsedPrice", 0.0);
-            double imposto = price * 0.15;
-            double semImposto = price - imposto;
+            double tax = BigDecimal.valueOf(price * 0.15).setScale(2, RoundingMode.HALF_UP).doubleValue();
+            double newPrice = BigDecimal.valueOf(price - tax).setScale(2, RoundingMode.HALF_UP).doubleValue();
 
-            params.put("parsedPrice", semImposto);
-            params.put("imposto", imposto);
+            game.setTax(tax);
+            game.setPriceParsed(newPrice);
+
             return game;
         };
     }
 
     @Bean
     public Step<Game> storeRatePrice() {
-        return (game, params) -> {
-            if (Boolean.TRUE.equals(params.get("skipPriceSteps"))) return game;
+        return (game, ignored) -> {
+            double price = game.getPriceParsed();
+            if (price <= 0.0) return game;
 
-            double price = (double) params.getOrDefault("parsedPrice", 0.0);
-            double rate = price * 0.30;
-            double finalPrice = price - rate;
+            double rate = BigDecimal.valueOf(price * 0.30).setScale(2, RoundingMode.HALF_UP).doubleValue();
+            double newPrice = BigDecimal.valueOf(price - rate).setScale(2, RoundingMode.HALF_UP).doubleValue();
 
-            params.put("parsedPrice", finalPrice);
-            params.put("taxa", rate);
+            game.setRate(rate);
+            game.setPriceParsed(newPrice);
+
             return game;
         };
     }
 
     @Bean
     public Step<Game> finalizePrice() {
-        return (game, params) -> {
-            if (Boolean.TRUE.equals(params.get("skipPriceSteps"))) {
+        return (game, ignored) -> {
+            double price = game.getPriceParsed();
+
+            if (price == 0.0) {
                 game.setPrice("Gratuito");
-                return game;
-            }
-
-            Object parsed = params.get("parsedPrice");
-
-            if (parsed instanceof Double price && price > 0) {
+            } else if (price > 0.0) {
                 Locale localeBR = new Locale("pt", "BR");
                 String precoFormatado = String.format(localeBR, "R$ %.2f", price).replace(".", ",");
                 game.setPrice(precoFormatado);
             } else {
-                game.setPrice("Gratuito");
+                game.setPrice("Indisponível");
             }
 
             return game;
         };
     }
 
-
     @Bean
     public Step<Game> standardizeDate() {
-        return (game, params) -> {
-            if (game.getReleaseDate() != null && !game.getReleaseDate().isBlank()) {
-                String rawDate = game.getReleaseDate().trim();
+        return (game, ignored) -> {
+            if (game.getReleaseDate() == null || game.getReleaseDate().isBlank()) return game;
 
-                if (rawDate.equalsIgnoreCase("coming soon")) {
-                    game.setReleaseDate("Em breve");
-                    return game;
-                }
-
-                String[] possiblePatterns = {
-                        "yyyy-MM-dd",
-                        "dd/MM/yyyy",
-                        "MM/dd/yyyy",
-                        "dd-MM-yyyy",
-                        "MMM dd, yyyy",
-                        "dd MMM, yyyy",
-                        "d MMM, yyyy"
-                };
-
-                for (String pattern : possiblePatterns) {
-                    try {
-                        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
-                        LocalDate parsedDate = LocalDate.parse(rawDate, inputFormatter);
-
-                        DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                        String formatted = parsedDate.format(outputFormatter);
-                        game.setReleaseDate(formatted);
-                        return game;
-                    } catch (Exception ignored) {}
-                }
-
-                System.err.println("[Pipeline] Formato de data inválido: " + rawDate);
+            String rawDate = game.getReleaseDate().trim();
+            if (rawDate.equalsIgnoreCase("coming soon")) {
+                game.setReleaseDate("Em breve");
+                return game;
             }
 
+            String[] patterns = {
+                    "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "dd-MM-yyyy",
+                    "MMM dd, yyyy", "dd MMM, yyyy", "d MMM, yyyy"
+            };
+
+            for (String pattern : patterns) {
+                try {
+                    DateTimeFormatter input = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
+                    LocalDate parsed = LocalDate.parse(rawDate, input);
+                    DateTimeFormatter output = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    game.setReleaseDate(parsed.format(output));
+                    return game;
+                } catch (Exception ignoredParse) {}
+            }
+
+            System.err.println("[Pipeline] Formato de data inválido: " + rawDate);
             return game;
         };
     }

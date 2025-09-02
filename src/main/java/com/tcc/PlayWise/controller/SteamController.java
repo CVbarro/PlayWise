@@ -1,6 +1,5 @@
 package com.tcc.PlayWise.controller;
 
-import com.tcc.PlayWise.dto.GameDetailsDTO;
 import com.tcc.PlayWise.model.Game;
 import com.tcc.PlayWise.service.GameService;
 import com.tcc.PlayWise.service.SteamService;
@@ -24,7 +23,7 @@ public class SteamController {
     }
 
     @GetMapping("/game/search")
-    public List<GameDetailsDTO> searchGame(@RequestParam String name) {
+    public List<Game> searchGame(@RequestParam String name) {
         List<Game> rawGames = steamService.searchGameByName(name);
         return gameService.processSteamGames(rawGames);
     }

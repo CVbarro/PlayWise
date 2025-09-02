@@ -64,13 +64,20 @@ public class SteamService {
         return results;
     }
 
-    private Game getGameInfo(int appId) {
+     Game getGameInfo(int appId) {
         try {
             String url = BASE_URL + appId + "&cc=br&l=pt";
             HttpResponse<String> response = sendRequest(url);
 
             JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
-            JsonObject gameData = root.getAsJsonObject(String.valueOf(appId)).getAsJsonObject("data");
+            JsonObject appNode = root.getAsJsonObject(String.valueOf(appId));
+
+            if (appNode == null || !appNode.has("data")) {
+                logger.warn("AppId {} não possui dados válidos na resposta da Steam", appId);
+                return null;
+            }
+
+            JsonObject gameData = appNode.getAsJsonObject("data");
 
             String title = safeGet(gameData, "name", "Título desconhecido");
             String type = extractType(gameData);

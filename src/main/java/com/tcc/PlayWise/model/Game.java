@@ -16,6 +16,11 @@ public class Game {
     private String type;
     private String releaseDate;
     private String price;
+    private double priceParsed;
+    private double priceOriginal;
+    private double tax;
+    private double rate;
+
 
 
 }
