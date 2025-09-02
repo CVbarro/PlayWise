@@ -3,7 +3,7 @@ package com.tcc.PlayWise.dto;
 import lombok.Data;
 
 @Data
-public class GameDetailsDto {
+public class GameDetailsDTO {
 
     private String title;
     private String type;

@@ -17,26 +17,30 @@ public class Pipeline<T> {
         }
     }
 
-    public Pipeline(){
-
-    }
+    public Pipeline() {}
 
     public Pipeline<T> addStep(Step<T> step, boolean enabled, Map<String, Object> params) {
         if (enabled) steps.add(new StepConfig<>(step, params));
         return this;
     }
 
-    public T execute(T input) {
+    public Pipeline<T> addStep(Step<T> step) {
+        return addStep(step, true, null);
+    }
+
+
+    public T execute(T input, Map<String, Object> context) {
         T result = input;
         for (StepConfig<T> stepConfig : steps) {
-            result = stepConfig.step.safeApply(result, stepConfig.params);
+            Map<String, Object> stepParams = stepConfig.params != null ? stepConfig.params : context;
+            result = stepConfig.step.safeApply(result, stepParams);
         }
         return result;
     }
 
-    public List<T> executeParallel(List<T> inputs) {
+    public List<T> executeParallel(List<T> inputs, Map<String, Object> context) {
         return inputs.parallelStream()
-                .map(this::execute)
+                .map(input -> execute(input, context))
                 .collect(Collectors.toList());
     }
 
