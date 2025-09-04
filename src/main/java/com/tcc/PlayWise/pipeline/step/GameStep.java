@@ -37,15 +37,27 @@ public class GameStep {
     @Bean
     public Step<Game> standardizePrice() {
         return (game, ignored) -> {
-            String raw = game.getPrice() != null ? game.getPrice().trim().toLowerCase() : "";
+            String rawPrice = game.getPrice() != null ? game.getPrice().trim().toLowerCase() : "";
+            String rawDate = game.getReleaseDate() != null ? game.getReleaseDate().trim().toLowerCase() : "";
 
-            if (raw.contains("gratuito") || raw.contains("free") || raw.equals("0") || raw.equals("0.00")) {
+            // Caso 1: jogo "Em breve" com preço vazio ou malformado
+            if (rawDate.contains("em breve") &&
+                    (rawPrice.isBlank() || rawPrice.equals("-") || rawPrice.equals("gratuito") || rawPrice.equals("r$ ,"))) {
+                game.setPriceParsed(-1.0);
+                game.setPriceOriginal(-1.0);
+                game.setPrice("Indisponível");
+                return game;
+            }
+
+            // Caso 2: jogo gratuito
+            if (rawPrice.contains("gratuito") || rawPrice.contains("free") || rawPrice.equals("0") || rawPrice.equals("0.00")) {
                 game.setPriceParsed(0.0);
                 game.setPriceOriginal(0.0);
                 return game;
             }
 
-            String cleaned = raw
+            // Conversão do preço
+            String cleaned = rawPrice
                     .replaceAll("r\\$", "")
                     .replaceAll("us\\$", "")
                     .replaceAll("usd", "")
@@ -65,14 +77,17 @@ public class GameStep {
                 game.setPriceParsed(parsed);
                 game.setPriceOriginal(parsed);
             } catch (NumberFormatException e) {
-                System.err.printf("[Pipeline] Erro ao converter preço '%s' para jogo '%s'%n", raw, game.getTitle());
+                System.err.printf("[Pipeline] Erro ao converter preço '%s' para jogo '%s'%n", rawPrice, game.getTitle());
                 game.setPriceParsed(-1.0);
                 game.setPriceOriginal(-1.0);
+                game.setPrice("Indisponível");
             }
 
             return game;
         };
     }
+
+
 
     @Bean
     public Step<Game> markIfFree() {
@@ -119,6 +134,10 @@ public class GameStep {
     @Bean
     public Step<Game> finalizePrice() {
         return (game, ignored) -> {
+            if ("Indisponível".equalsIgnoreCase(game.getPrice())) {
+                return game; // já definido, não sobrescreve
+            }
+
             double price = game.getPriceParsed();
 
             if (price == 0.0) {
@@ -135,11 +154,14 @@ public class GameStep {
         };
     }
 
+
+
     @Bean
     public Step<Game> standardizeDate() {
         return (game, ignored) -> {
             if (game.getReleaseDate() == null || game.getReleaseDate().isBlank()) return game;
 
+            LocalDate dateNow = LocalDate.now();
             String rawDate = game.getReleaseDate().trim();
             if (rawDate.equalsIgnoreCase("coming soon")) {
                 game.setReleaseDate("Em breve");
@@ -155,8 +177,12 @@ public class GameStep {
                 try {
                     DateTimeFormatter input = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
                     LocalDate parsed = LocalDate.parse(rawDate, input);
-                    DateTimeFormatter output = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                    game.setReleaseDate(parsed.format(output));
+                    if (parsed.isAfter(dateNow)) {
+                        game.setReleaseDate("Em breve");
+                    } else {
+                        DateTimeFormatter output = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                        game.setReleaseDate(parsed.format(output));
+                    }
                     return game;
                 } catch (Exception ignoredParse) {}
             }

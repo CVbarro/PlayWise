@@ -27,12 +27,12 @@ public class GameService {
         return List.of(
                 Map.of("step", "standardizeTitle", "enabled", true),
                 Map.of("step", "standardizeType", "enabled", true),
+                Map.of("step", "standardizeDate", "enabled", true),
                 Map.of("step", "standardizePrice", "enabled", true),
                 Map.of("step", "markIfFree", "enabled", true),
                 Map.of("step", "taxPrice", "enabled", true),
                 Map.of("step", "storeRatePrice", "enabled", true),
-                Map.of("step", "finalizePrice", "enabled", true),
-                Map.of("step", "standardizeDate", "enabled", true)
+                Map.of("step", "finalizePrice", "enabled", true)
         );
     }
 
