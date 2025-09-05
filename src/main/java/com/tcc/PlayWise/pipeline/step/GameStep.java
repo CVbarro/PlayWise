@@ -89,15 +89,6 @@ public class GameStep {
 
 
 
-    @Bean
-    public Step<Game> markIfFree() {
-        return (game, ignored) -> {
-            if (game.getPriceParsed() == 0.0) {
-                game.setPrice("Gratuito");
-            }
-            return game;
-        };
-    }
 
     @Bean
     public Step<Game> taxPrice() {

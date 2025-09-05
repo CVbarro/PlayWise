@@ -15,7 +15,6 @@ public class StepFactory {
     private final Step<Game> storeRatePrice;
     private final Step<Game> finalizePrice;
     private final Step<Game> standardizeDate;
-    private final Step<Game> markIfFree;
 
     public StepFactory(
             Step<Game> standardizeTitle,
@@ -24,8 +23,7 @@ public class StepFactory {
             Step<Game> taxPrice,
             Step<Game> storeRatePrice,
             Step<Game> finalizePrice,
-            Step<Game> standardizeDate,
-            Step<Game> markIfFree
+            Step<Game> standardizeDate
     ) {
         this.standardizeTitle = standardizeTitle;
         this.standardizeType = standardizeType;
@@ -34,7 +32,6 @@ public class StepFactory {
         this.storeRatePrice = storeRatePrice;
         this.finalizePrice = finalizePrice;
         this.standardizeDate = standardizeDate;
-        this.markIfFree = markIfFree;
     }
 
     public <T> Step<T> createStep(Class<T> clazz, String name) {
@@ -47,7 +44,6 @@ public class StepFactory {
                 case "storeRatePrice": return (Step<T>) storeRatePrice;
                 case "finalizePrice": return (Step<T>) finalizePrice;
                 case "standardizeDate": return (Step<T>) standardizeDate;
-                case "markIfFree": return (Step<T>) markIfFree;
                 default:
                     throw new RuntimeException("Etapa desconhecida: " + name);
             }
