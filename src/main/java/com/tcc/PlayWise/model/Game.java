@@ -20,6 +20,7 @@ public class Game {
     private double priceOriginal;
     private double tax;
     private double rate;
+    private Store store;
 
 
 

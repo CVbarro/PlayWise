@@ -121,7 +121,12 @@ public class GameStep {
             double price = game.getPriceParsed();
             if (price <= 0.0) return game;
 
-            double rate = BigDecimal.valueOf(price * 0.30).setScale(2, RoundingMode.HALF_UP).doubleValue();
+            double ratePercent = switch (game.getStore()) {
+                case STEAM -> 0.30;
+                case GOG -> 0.31;
+            };
+
+            double rate = BigDecimal.valueOf(price * ratePercent).setScale(2, RoundingMode.HALF_UP).doubleValue();
             double newPrice = BigDecimal.valueOf(price - rate).setScale(2, RoundingMode.HALF_UP).doubleValue();
 
             game.setRate(rate);

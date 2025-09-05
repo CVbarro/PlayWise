@@ -4,6 +4,7 @@ import com.tcc.PlayWise.model.Game;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.tcc.PlayWise.model.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -84,7 +85,9 @@ public class SteamService {
             String releaseDate = extractReleaseDate(gameData);
             String price = extractPrice(gameData);
 
-            return new Game(title, type, releaseDate, price);
+            Game game = new Game(title, type, releaseDate, price);
+            game.setStore(Store.STEAM);
+            return game;
 
         } catch (Exception e) {
             logger.warn("Falha ao buscar detalhes do jogo (appId: {}): {}", appId, e.getMessage());
